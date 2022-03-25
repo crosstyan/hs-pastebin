@@ -27,6 +27,9 @@ dependencies:
 - random
 - aeson
 - mtl
+- text
+- data-default-class
+- containers
 
 library:
   source-dirs: src

@@ -3,48 +3,75 @@ module Main where
 
 import Network.HTTP.Types
 import Network.Wai.Middleware.RequestLogger
-
+import Data.Text.Lazy (Text, pack)
 import Control.Monad.IO.Class
 import Data.String (fromString)
 import System.Random
 import Data.Aeson (FromJSON, ToJSON)
-import Web.Scotty(scotty)
+import Web.Scotty(scotty, ActionM)
 import Web.Scotty.Trans
 import Data.Monoid (mconcat)
 import GHC.Generics
+import Data.Default.Class (def)
 import Control.Monad.Reader (MonadIO, MonadReader, ReaderT, asks, lift, runReaderT)
-
--- | Set the body of the response to the JSON encoding of the given value. Also sets \"Content-Type\"
--- header to \"application/json; charset=utf-8\" if it has not already been set.
--- json :: ToJSON a => a -> ActionM ()
--- json = Trans.json
-
+import Data.IORef (IORef)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import qualified Data.IORef as IORef
 data AppMsg = AppMsg {code :: Int
                       , message :: String} deriving (Show, Eq, Generic)
 instance ToJSON AppMsg
-instance FromJSON AppMsg
 
-newtype Config = Config
-    { environment :: String} deriving (Eq, Read, Show)
+data WordMsg = WordMsg {word :: String
+                      , time :: Int} deriving (Show, Eq, Generic)
+instance ToJSON WordMsg
+
+data Config = Config
+    { environment :: String
+    -- https://hackage.haskell.org/package/base-4.16.1.0/docs/Data-IORef.html
+    , counts :: IORef (Map Text Integer)}
 
 newtype ConfigM a = ConfigM
   { runConfigM :: ReaderT Config IO a
   } deriving (Applicative, Functor, Monad, MonadIO, MonadReader Config)
 
--- application :: ScottyT Text ConfigM ()
+getTimes :: Map Text Integer -> Text -> (Map Text Integer ,Integer)
+getTimes m k = case Map.lookup k m of
+              -- Insert a new key and value in the map. If the key is already
+              -- present in the map, the associated value is replaced with the
+              -- supplied value. 
+                Just n  -> (Map.insert k (n+1) m, n+1)
+                Nothing -> (Map.insert k 0 m, 0)
+
+application :: ScottyT Text ConfigM ()
+application = do
+  get "/" $ do
+    e <- lift $ asks environment
+    json AppMsg {code = 200, message = e}
+  get "/forbidden" $ do
+    status status403
+    json AppMsg {code = 403, message = "Forbidden"}
+  get "/:word" $ do
+    c <- lift $ asks counts
+    beam <- param "word"
+    m <- liftIO (IORef.readIORef c :: IO (Map Text Integer))
+    let (newM, times) = getTimes m $ fromString beam
+    liftIO (IORef.writeIORef c newM)
+    json WordMsg {word = beam, time = fromInteger times}
+-- https://github.com/scotty-web/scotty/blob/c36f35b89993f329b8ff08852c1535816375a926/Web/Scotty.hs#L278
+  notFound $ do
+      json AppMsg {code = 404, message = "Not found"}
+
+main :: IO ()
+main = do
+  c <- IORef.newIORef (Map.fromList [("", 0)] :: Map Text Integer)
+  let config = Config { environment = "Development"
+                      , counts = c}
+  let runIO m = runReaderT (runConfigM m) config
+  scottyOptsT def runIO application
 
 -- http://seanhess.github.io/2015/08/19/practical-haskell-json-api.html
-main :: IO ()
 -- See https://github.com/scotty-web/scotty/blob/480ed62a17dbadd5128b67f9a448339e52930c1f/examples/exceptions.hs
 -- See Large args section of https://typeclasses.com/featured/dollar
-main = scotty 3000 $ do
-    get "/forbidden" $ do
-        status status403
-        json AppMsg {code = 403, message = "Forbidden"}
-    get "/:word" $ do
-        beam <- param "word"
-        json AppMsg {code = 200, message = beam}
--- https://github.com/scotty-web/scotty/blob/c36f35b89993f329b8ff08852c1535816375a926/Web/Scotty.hs#L278
-    notFound $ do
-        json AppMsg {code = 404, message = "Not found"}
+-- https://github.com/scotty-web/scotty/blob/master/examples/reader.hs
 

@@ -56,12 +56,34 @@ handleEx e = do
 -- * Raises an exception which can be caught by 'rescue' if parameter is not found.
 -- param
 
+-- lift   :: (Monad m, MonadTrans t) => m a -> t m a
+-- return ::                              a -> m a
+
+-- ScottyT :: * -> (* -> *) -> * -> *
+-- ScottyT    e       m        a      -- what is a?
+-- ScottyT Text IO ::          * -> * (ScottyM)
+-- ActionT :: * -> (* -> *) -> * -> *
+-- ActionT    e       m        a
+-- ActionT Text ConfigM ::     * -> *
+-- a is some generic type? Unit?
+--                    State  s                a
+-- ScottyT { runS  :: State (ScottyState e m) a } 
+--                    ExceptT  e               m                                            a
+-- ActionT { runAM :: ExceptT (ActionError e) (ReaderT ActionEnv (StateT ScottyResponse m)) a }
+-- https://hackage.haskell.org/package/transformers-0.6.0.4/docs/Control-Monad-Trans-Except.html#t:ExceptT
+-- Maybe     :: * -> *
+-- Maybe Int :: *
+-- Maybe ()  :: *
+
+-- a is unit here
+--                      e      m     a
 application :: ScottyT Text ConfigM ()
 application = do
   -- custom exception handler to avoid ugly default HTML
   defaultHandler handleEx
 
-  -- ActionT Text ConfigM 
+  -- ActionT is a MonadTrans (and a Monad)
+  -- ActionT Text ConfigM
   get "/" $ do
     e <- asks environment
     json AppMsg {code = 200, message = e}
@@ -72,13 +94,20 @@ application = do
     -- Take a Text value and parse it as a, or fail with a message.
     -- https://hackage.haskell.org/package/scotty-0.12/docs/Web-Scotty.html#v:parseParam
     -- rescue :: (ScottyError e, Monad m) => ActionT e m a -> (e -> ActionT e m a) -> ActionT e m a 
-    (p :: Either String String) <- rescue (Right <$> param "a") (const (return (Left "invalid input"))) -- Parsable a => Text/String 
+    -- Parsable a => Text/String -- const x == (\_ -> x)
+    (p :: Either String String) <- rescue (Right <$> param "a") (\_ -> return $ Left "invalid params")
     case p of 
-      Left e -> handleEx (pack e)
+      Left e  -> handleEx (pack e)
       Right m -> json AppMsg {code = 200, message = m}
   get "/:word" $ do
     c <- asks counts
     beam <- param "word"
+    -- Expected: IO (Map Text Integer)
+    --         -> ActionT Text ConfigM (IO (Map Text Integer))
+    -- Actual: IO (Map Text Integer)
+    --         -> ActionT Text IO (Map Text Integer)
+    -- this is error
+    -- let m' = (lift :: IO (Map Text Integer) -> ActionT Text ConfigM (IO (Map Text Integer))) (IORef.readIORef c :: IO (Map Text Integer))
     m <- liftIO (IORef.readIORef c :: IO (Map Text Integer))
     let (newM, times) = getTimes m $ fromString beam
     liftIO (IORef.writeIORef c newM)
@@ -107,6 +136,10 @@ main = do
 --   -> ScottyT e m ()	 -- not sure why Scotty needs e (Text) here. m is a Monad that runs in each action.
 --   -> n ()
 
+-- https://stackoverflow.com/questions/67186267/best-practices-with-monad-transformers-to-hide-or-not-to-hide-liftio
+-- https://stackoverflow.com/questions/38626963/when-to-use-or-not-to-use-return-in-haskells-monad-expression
+-- https://softwareengineering.stackexchange.com/questions/231136/why-does-a-monad-use-return-or-unit-rather-than-lift
+-- https://stackoverflow.com/questions/23903031/lift-return-and-a-transformer-type-constructor
 -- https://stackoverflow.com/questions/57374143/understanding-the-state-monad
 -- https://stackoverflow.com/questions/5545517/difference-between-state-st-ioref-and-mvar
 -- http://seanhess.github.io/2015/08/19/practical-haskell-json-api.html

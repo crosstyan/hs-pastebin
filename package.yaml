@@ -30,7 +30,6 @@ dependencies:
 - text
 - data-default-class
 - containers
-- transformers
 
 library:
   source-dirs: src

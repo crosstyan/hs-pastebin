@@ -16,7 +16,6 @@ import Data.Default.Class (def)
 import Control.Monad.Reader (MonadIO, MonadReader, ReaderT, asks, lift, runReaderT)
 import Data.IORef (IORef)
 import Data.Map (Map)
-import Control.Monad.Trans.Except
 import qualified Data.Map as Map
 import qualified Data.IORef as IORef
 data AppMsg = AppMsg {code :: Int

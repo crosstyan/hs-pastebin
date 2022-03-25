@@ -31,6 +31,7 @@ data Config = Config
     -- https://hackage.haskell.org/package/base-4.16.1.0/docs/Data-IORef.html
     , counts :: IORef (Map Text Integer)}
 
+-- Provide a global environment for Scotty (Read Only)
 newtype ConfigM a = ConfigM
   { runConfigM :: ReaderT Config IO a
   } deriving (Applicative, Functor, Monad, MonadIO, MonadReader Config)
@@ -45,14 +46,15 @@ getTimes m k = case Map.lookup k m of
 
 application :: ScottyT Text ConfigM ()
 application = do
+  -- ActionT Text ConfigM 
   get "/" $ do
-    e <- lift $ asks environment
+    e <- asks environment
     json AppMsg {code = 200, message = e}
   get "/forbidden" $ do
     status status403
     json AppMsg {code = 403, message = "Forbidden"}
   get "/:word" $ do
-    c <- lift $ asks counts
+    c <- asks counts
     beam <- param "word"
     m <- liftIO (IORef.readIORef c :: IO (Map Text Integer))
     let (newM, times) = getTimes m $ fromString beam
@@ -67,9 +69,22 @@ main = do
   c <- IORef.newIORef (Map.fromList [("", 0)] :: Map Text Integer)
   let config = Config { environment = "Development"
                       , counts = c}
+-- let keyword equals (return just wrap it a monad and (<-) unwrap it)
+-- config <- return $ Config { environment = "Development", counts = c}
+
+-- Run monad m into IO, called at each action.
   let runIO m = runReaderT (runConfigM m) config
+
   scottyOptsT def runIO application
 
+-- scottyOptsT
+--   :: (Monad m, MonadIO n)	 
+--   => Options	 -- See https://hackage.haskell.org/package/warp-3.3.11/docs/Network-Wai-Handler-Warp-Internal.html#t:Settings
+--   -> (m Response -> IO Response)	
+--   -> ScottyT e m ()	 -- not sure why Scotty needs e (Text) here. m is a Monad that runs in each action.
+--   -> n ()
+
+-- https://stackoverflow.com/questions/5545517/difference-between-state-st-ioref-and-mvar
 -- http://seanhess.github.io/2015/08/19/practical-haskell-json-api.html
 -- See https://github.com/scotty-web/scotty/blob/480ed62a17dbadd5128b67f9a448339e52930c1f/examples/exceptions.hs
 -- See Large args section of https://typeclasses.com/featured/dollar

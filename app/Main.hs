@@ -136,6 +136,9 @@ main = do
 --   -> ScottyT e m ()	 -- not sure why Scotty needs e (Text) here. m is a Monad that runs in each action.
 --   -> n ()
 
+-- http://dev.stephendiehl.com/hask/
+-- https://github.com/haskell/mtl
+-- https://stackoverflow.com/questions/9054731/avoiding-lift-with-monad-transformers
 -- https://stackoverflow.com/questions/67186267/best-practices-with-monad-transformers-to-hide-or-not-to-hide-liftio
 -- https://stackoverflow.com/questions/38626963/when-to-use-or-not-to-use-return-in-haskells-monad-expression
 -- https://softwareengineering.stackexchange.com/questions/231136/why-does-a-monad-use-return-or-unit-rather-than-lift

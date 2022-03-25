@@ -3,7 +3,7 @@ module Main where
 
 import Network.HTTP.Types
 import Network.Wai.Middleware.RequestLogger
-import Data.Text.Lazy (Text, pack)
+import Data.Text.Lazy (Text, pack, unpack)
 import Control.Monad.IO.Class
 import Data.String (fromString)
 import System.Random
@@ -16,6 +16,7 @@ import Data.Default.Class (def)
 import Control.Monad.Reader (MonadIO, MonadReader, ReaderT, asks, lift, runReaderT)
 import Data.IORef (IORef)
 import Data.Map (Map)
+import Control.Monad.Trans.Except
 import qualified Data.Map as Map
 import qualified Data.IORef as IORef
 data AppMsg = AppMsg {code :: Int
@@ -44,8 +45,22 @@ getTimes m k = case Map.lookup k m of
                 Just n  -> (Map.insert k (n+1) m, n+1)
                 Nothing -> (Map.insert k 0 m, 0)
 
+
+handleEx :: Monad m => Text -> ActionT Text m ()
+handleEx e = do
+    status status500
+    json AppMsg {code = 500, message = unpack e}
+
+
+-- Get a parameter. First looks in captures, then form data, then query parameters.
+-- * Raises an exception which can be caught by 'rescue' if parameter is not found.
+-- param
+
 application :: ScottyT Text ConfigM ()
 application = do
+  -- custom exception handler to avoid ugly default HTML
+  defaultHandler handleEx
+
   -- ActionT Text ConfigM 
   get "/" $ do
     e <- asks environment
@@ -53,6 +68,14 @@ application = do
   get "/forbidden" $ do
     status status403
     json AppMsg {code = 403, message = "Forbidden"}
+  get "/reco" $ do
+    -- Take a Text value and parse it as a, or fail with a message.
+    -- https://hackage.haskell.org/package/scotty-0.12/docs/Web-Scotty.html#v:parseParam
+    -- rescue :: (ScottyError e, Monad m) => ActionT e m a -> (e -> ActionT e m a) -> ActionT e m a 
+    (p :: Either String String) <- rescue (Right <$> param "a") (const (return (Left "invalid input"))) -- Parsable a => Text/String 
+    case p of 
+      Left e -> handleEx (pack e)
+      Right m -> json AppMsg {code = 200, message = m}
   get "/:word" $ do
     c <- asks counts
     beam <- param "word"
@@ -84,6 +107,7 @@ main = do
 --   -> ScottyT e m ()	 -- not sure why Scotty needs e (Text) here. m is a Monad that runs in each action.
 --   -> n ()
 
+-- https://stackoverflow.com/questions/57374143/understanding-the-state-monad
 -- https://stackoverflow.com/questions/5545517/difference-between-state-st-ioref-and-mvar
 -- http://seanhess.github.io/2015/08/19/practical-haskell-json-api.html
 -- See https://github.com/scotty-web/scotty/blob/480ed62a17dbadd5128b67f9a448339e52930c1f/examples/exceptions.hs

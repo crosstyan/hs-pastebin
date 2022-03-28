@@ -1,7 +1,7 @@
-# proj
+# hs-pastebin
 
 https://docs.haskellstack.org/en/stable/GUIDE/
 
 ```bash
-stack exec proj-exe
+stack build && stack exec hs-pastebin-exe
 ```

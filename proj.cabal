@@ -33,13 +33,18 @@ library
   build-depends:
       aeson
     , base >=4.7 && <5
+    , bytestring
     , containers
     , data-default-class
+    , hedis
     , http-types
     , mtl
     , random
     , scotty
     , text
+    , time
+    , utf8-string
+    , uuid
     , wai-extra
   default-language: Haskell2010
 
@@ -53,14 +58,19 @@ executable proj-exe
   build-depends:
       aeson
     , base >=4.7 && <5
+    , bytestring
     , containers
     , data-default-class
+    , hedis
     , http-types
     , mtl
     , proj
     , random
     , scotty
     , text
+    , time
+    , utf8-string
+    , uuid
     , wai-extra
   default-language: Haskell2010
 
@@ -75,13 +85,18 @@ test-suite proj-test
   build-depends:
       aeson
     , base >=4.7 && <5
+    , bytestring
     , containers
     , data-default-class
+    , hedis
     , http-types
     , mtl
     , proj
     , random
     , scotty
     , text
+    , time
+    , utf8-string
+    , uuid
     , wai-extra
   default-language: Haskell2010

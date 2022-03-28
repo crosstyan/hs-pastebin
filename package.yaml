@@ -30,6 +30,11 @@ dependencies:
 - text
 - data-default-class
 - containers
+- hedis
+- bytestring
+- uuid
+- utf8-string
+- time
 
 library:
   source-dirs: src

@@ -20,12 +20,12 @@ import qualified Data.Map as Map
 import qualified Database.Redis as Redis
 import qualified Data.IORef as IORef
 import qualified Data.UUID as UUID
+import Data.UUID (toString)
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as BS
-import Data.ByteString.Lazy.UTF8 as BLU -- from utf8-string
-import Data.ByteString.UTF8 as BSU      -- from utf8-string
-import qualified System.Random as UUID
+import qualified Data.ByteString.Lazy.UTF8 as BLU -- from utf8-string
+import qualified Data.ByteString.UTF8 as BSU      -- from utf8-string
 import Data.Time.Clock
 import Data.Time.Calendar
 
@@ -152,7 +152,7 @@ application = do
     -- this is error
     -- let m' = (lift :: IO (Map Text Integer) -> ActionT Text ConfigM (IO (Map Text Integer))) (IORef.readIORef c :: IO (Map Text Integer))
     m <- liftIO (IORef.readIORef c :: IO (Map Text Integer))
-    let (newM, times) = getTimes m $ Data.String.fromString beam
+    let (newM, times) = getTimes m $ fromString beam
     liftIO (IORef.writeIORef c newM)
     json WordMsg {word = beam, times = fromInteger times}
 -- https://github.com/scotty-web/scotty/blob/c36f35b89993f329b8ff08852c1535816375a926/Web/Scotty.hs#L278
@@ -160,18 +160,18 @@ application = do
     conn <- asks conn
     expire <- asks expire
     b <- body
-    let length = toInteger $ BL.length b
-    let expire_time = floor $ retention (fromIntegral $ min_age expire) (fromIntegral $ max_age expire) (fromIntegral $ max_size expire) (fromIntegral length)
+    let l = toInteger $ BLU.length b
+    let expire_time = floor $ retention (fromIntegral $ min_age expire) (fromIntegral $ max_age expire) (fromIntegral $ max_size expire) (fromIntegral l)
     if expire_time <= (min_age expire + 1)
       then handleEx "File too big"
     else do
       current <- liftIO getCurrentTime
       let expire_date = addUTCTime (secondsToNominalDiffTime $ fromIntegral expire_time) current
-      uuid <- liftIO (UUID.randomIO :: IO UUID.UUID)
+      uuid <- liftIO (randomIO :: IO UUID.UUID)
       liftIO $ Redis.runRedis conn $ do
         Redis.set (UUID.toASCIIBytes uuid) $ BL.toStrict b
         Redis.expire (UUID.toASCIIBytes uuid) expire_time
-      json FileMsg {expire_time = show expire_date, uuid = UUID.toString uuid, file_size = length}
+      json FileMsg {expire_time = show expire_date, uuid = toString uuid, file_size = l}
   -- TODO: get Recent 10 files
   -- Maybe I should have used MongoDB instead of Redis. Or Redis hash?
   get "/:uuid" $ do
